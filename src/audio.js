@@ -13,10 +13,11 @@ export class AudioEngine {
     this.analyser.fftSize = 2048;
     this.analyser.smoothingTimeConstant = 0.8;
 
-    // Create gain node for volume control, inserted between analyser and destination
+    // Create gain node for volume control, inserted between analyser and destination.
+    // NOTE: The analyser → gainNode → destination chain is NOT connected here.
+    // It is only wired up for file playback and the oscillator fallback, so that
+    // microphone input (micSource → analyser) bypasses the destination entirely.
     this.gainNode = this.audioContext.createGain();
-    this.analyser.connect(this.gainNode);
-    this.gainNode.connect(this.audioContext.destination);
 
     // Pre-allocate frequency data buffers
     this.frequencyData = new Uint8Array(this.analyser.frequencyBinCount);
@@ -101,6 +102,9 @@ export class AudioEngine {
             this.fileSource.buffer = audioBuffer;
             this.fileSource.loop = true;
             this.fileSource.connect(this.analyser);
+            // Wire up the analyser → gainNode → destination chain for file playback
+            this.analyser.connect(this.gainNode);
+            this.gainNode.connect(this.audioContext.destination);
             this.fileSource.start(0);
             resolve(this.fileSource);
           })
@@ -126,6 +130,9 @@ export class AudioEngine {
 
     this.oscillator.connect(this.oscillatorGain);
     this.oscillatorGain.connect(this.analyser);
+    // Wire up the analyser → gainNode → destination chain for the demo tone
+    this.analyser.connect(this.gainNode);
+    this.gainNode.connect(this.audioContext.destination);
     this.oscillator.start();
   }
 
@@ -336,6 +343,9 @@ export class AudioFileLoader {
     this.bufferSource.buffer = this.audioBuffer;
     this.bufferSource.loop = true;
     this.bufferSource.connect(this.audioEngine.analyser);
+    // Wire up the analyser → gainNode → destination chain for file playback
+    this.audioEngine.analyser.connect(this.audioEngine.gainNode);
+    this.audioEngine.gainNode.connect(this.audioEngine.audioContext.destination);
     this.bufferSource.start();
 
     // Store as active source
