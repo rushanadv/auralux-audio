@@ -1,4 +1,6 @@
-[
-  { "source": "/app", "destination": "/app.html" },
-  { "source": "/commentary", "destination": "/commentary.html" }
-]
+{
+  "rewrites": [
+    { "source": "/app", "destination": "/app.html" },
+    { "source": "/commentary", "destination": "/commentary.html" }
+  ]
+}
