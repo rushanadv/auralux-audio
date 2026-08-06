@@ -1,14 +1,12 @@
-const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
-
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
 
   if (req.method === 'OPTIONS') return res.status(200).end()
-  if (req.method !== 'POST') return res.status(405).end()
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  const { text } = req.body
+  const { text } = req.body || {}
   if (!text) return res.status(400).json({ error: 'No text provided' })
 
   const models = [
@@ -38,13 +36,24 @@ Commentary:`
           messages: [{ role: 'user', content: prompt }]
         })
       })
-      const data = await response.json()
+
+      const text_response = await response.text()
+      let data
+      try {
+        data = JSON.parse(text_response)
+      } catch (e) {
+        console.error('Non-JSON response from OpenRouter:', text_response.slice(0, 200))
+        continue
+      }
+
       if (data.choices?.[0]?.message?.content) {
         return res.status(200).json({ commentary: data.choices[0].message.content })
       }
     } catch (e) {
+      console.error('Model failed:', model, e.message)
       continue
     }
   }
-  res.status(500).json({ error: 'All models failed, try again.' })
+
+  return res.status(500).json({ error: 'All models failed, try again.' })
 }
