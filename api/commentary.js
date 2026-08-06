@@ -2,12 +2,22 @@ module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+  res.setHeader('Content-Type', 'application/json')
 
   if (req.method === 'OPTIONS') return res.status(200).end()
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  const { text } = req.body || {}
-  if (!text) return res.status(400).json({ error: 'No text provided' })
+  let body = req.body
+  if (typeof body === 'string') {
+    try { body = JSON.parse(body) } catch (e) { return res.status(400).json({ error: 'Invalid JSON body' }) }
+  }
+
+  const inputText = body && body.text
+  if (!inputText) return res.status(400).json({ error: 'No text provided' })
+
+  if (!process.env.OPENROUTER_API_KEY) {
+    return res.status(500).json({ error: 'API key not configured' })
+  }
 
   const models = [
     'meta-llama/llama-3.3-70b-instruct:free',
@@ -15,11 +25,7 @@ module.exports = async function handler(req, res) {
     'google/gemma-3-27b-it:free'
   ]
 
-  const prompt = `You are a hysterical live sports commentator. Rewrite the following text as over-the-top, breathless, relentlessly funny live sports commentary. Use ALL CAPS for dramatic moments, dashes for pauses, crowd reactions, color commentary, and play-by-play. Make it absurdly funny and energetic.
-
-Text: ${text}
-
-Commentary:`
+  const prompt = `You are a hysterical live sports commentator. Rewrite the following text as over-the-top, breathless, relentlessly funny live sports commentary. Use ALL CAPS for dramatic moments, dashes for pauses, crowd reactions, color commentary, and play-by-play. Make it absurdly funny and energetic.\n\nText: ${inputText}\n\nCommentary:`
 
   for (const model of models) {
     try {
@@ -37,23 +43,14 @@ Commentary:`
         })
       })
 
-      const text_response = await response.text()
+      const raw = await response.text()
       let data
-      try {
-        data = JSON.parse(text_response)
-      } catch (e) {
-        console.error('Non-JSON response from OpenRouter:', text_response.slice(0, 200))
-        continue
-      }
-
+      try { data = JSON.parse(raw) } catch (e) { continue }
       if (data.choices?.[0]?.message?.content) {
         return res.status(200).json({ commentary: data.choices[0].message.content })
       }
-    } catch (e) {
-      console.error('Model failed:', model, e.message)
-      continue
-    }
+    } catch (e) { continue }
   }
 
-  return res.status(500).json({ error: 'All models failed, try again.' })
+  return res.status(500).json({ error: 'All models failed. Try again.' })
 }
